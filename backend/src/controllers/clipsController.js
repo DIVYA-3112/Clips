@@ -30,10 +30,28 @@ exports.getClipStats = async (req, res) => {
     }
   };
 
-
 // This code is for streaming audio clips from a PostgreSQL database.
 
-const {streamCounter} = require("../index");
+const { streamCounter } = require("../metrics/prometheus");
+
+exports.streamClip = async (req, res) => {
+  const clipId = req.params.id;
+
+  try {
+    const result = await pool.query("SELECT * FROM clips WHERE id = $1", [clipId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Clip not found" });
+    }
+
+    await pool.query("UPDATE clips SET play_count = play_count + 1 WHERE id = $1", [clipId]);
+
+    streamCounter.labels({ clip_id: clipId }).inc();
+    res.redirect(result.rows[0].audio_url);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to stream clip" });
+  }
+};
+
 
 exports.streamClip = async (req, res) => {
   console.log("streamCounter:", streamCounter);
@@ -52,7 +70,8 @@ exports.streamClip = async (req, res) => {
     await pool.query("UPDATE clips SET play_count = play_count + 1 WHERE id = $1", [clipId]);
 
     // Increment Prometheus counter
-    streamCounter.labels({ clipId }).inc();
+    streamCounter.labels({ clip_id: clipId }).inc();
+    console.log("streamCounter:", streamCounter);
 
     res.redirect(clip.audio_url);
   } catch (err) {

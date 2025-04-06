@@ -3,18 +3,25 @@ const cors = require("cors");
 const morgan = require("morgan");
 const dotenv = require("dotenv");
 const clipsRoutes = require("./routes/clips");
-const promBundle = require("express-prom-bundle");
-const client = require("prom-client");
+const { register, totalRequests } = require("./metrics/prometheus");
 
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const metricsMiddleware = promBundle({ includeMethod: true });
-app.use(metricsMiddleware);
-client.collectDefaultMetrics(); // system-level metrics
 
+// increment total requests counter
+app.use((req, res, next) => {
+  totalRequests.inc();
+  next();
+});
+
+// Prometheus metrics endpoint
+app.get("/metrics", async (req, res) => {
+  res.set("Content-Type", register.contentType);
+  res.end(await register.metrics());
+});
 
 // Middleware
 app.use(cors());
@@ -42,47 +49,7 @@ app.get("/test-db", async (req, res) => {
   }
 });
 
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+app.listen(5000, '0.0.0.0', () => {
+  console.log("Server running on 0.0.0.0:5000");
 });
-
-// using Prometheus to monitor the server
-
-const { Counter } = require("prom-client");
-
-// Prometheus registry
-const register = new client.Registry();
-client.collectDefaultMetrics({ register });
-
-// Define custom counters
-const totalRequests = new client.Counter({
-  name: "api_requests_total",
-  help: "Total number of API requests",
-});
-
-const streamCounter = new Counter({
-  name: "clip_streams_total",
-  help: "Total streams per clip",
-  labelNames: ["clip_id"],
-});
-
-register.registerMetric(totalRequests);
-register.registerMetric(streamCounter);
-
-console.log("streamCounter:", streamCounter);
-
-// Increment request counter middleware
-app.use((req, res, next) => {
-  totalRequests.inc();
-  next();
-});
-
-// Metrics route
-app.get("/metrics", async (req, res) => {
-  res.set("Content-Type", register.contentType);
-  res.end(await register.metrics());
-});
-
-module.exports = { streamCounter }; // Export for controller usage
 
