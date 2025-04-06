@@ -15,7 +15,6 @@ This is the backend service for **Clips**, an audio streaming application that s
 - **Node.js** + **Express**
 - **PostgreSQL**
 - **Prometheus** & **Grafana** (Monitoring)
-- **Docker** (for containerization)
 - **pg** (Node PostgreSQL client)
 
 
