@@ -3,11 +3,18 @@ const cors = require("cors");
 const morgan = require("morgan");
 const dotenv = require("dotenv");
 const clipsRoutes = require("./routes/clips");
+const promBundle = require("express-prom-bundle");
+const client = require("prom-client");
+
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const metricsMiddleware = promBundle({ includeMethod: true });
+app.use(metricsMiddleware);
+client.collectDefaultMetrics(); // system-level metrics
+
 
 // Middleware
 app.use(cors());
@@ -42,7 +49,7 @@ app.listen(PORT, () => {
 
 // using Prometheus to monitor the server
 
-const client = require("prom-client");
+const { Counter } = require("prom-client");
 
 // Prometheus registry
 const register = new client.Registry();
@@ -54,7 +61,7 @@ const totalRequests = new client.Counter({
   help: "Total number of API requests",
 });
 
-const streamCounter = new client.Counter({
+const streamCounter = new Counter({
   name: "clip_streams_total",
   help: "Total streams per clip",
   labelNames: ["clip_id"],
@@ -62,6 +69,8 @@ const streamCounter = new client.Counter({
 
 register.registerMetric(totalRequests);
 register.registerMetric(streamCounter);
+
+console.log("streamCounter:", streamCounter);
 
 // Increment request counter middleware
 app.use((req, res, next) => {
